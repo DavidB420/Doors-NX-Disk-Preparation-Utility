@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <stdbool.h>
+#include <math.h>
 #include "diskio.h"
 
 void zeroFillBuffer(char* ptr, int length);
@@ -84,7 +85,8 @@ int main(int argc, char** argv)
 		scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
 	}
 
-	ULONGLONG selectedDiskSize = diskSizes[atoi(&userInputBuffer[0])];
+	int diskNum = atoi(&userInputBuffer[0]);
+	ULONGLONG selectedDiskSize = diskSizes[diskNum];
 
 	printf("\nWARNING! ALL DATA ON THIS DISK WILL BE LOST! Type ""yes"" to continue: ");
 
@@ -112,7 +114,41 @@ int main(int argc, char** argv)
 
 	writeDwordToFile(1, 0x1c6, osImage);
 
+	//Determine if FAT12, 16, or 32 should be used, depending on the file size
+	if (selectedDiskSize <= 16000000)
+	{
+		fseek(osImage, 0x440d, SEEK_SET);
+		fputc(8, osImage);
 
+		fseek(osImage, 0x4413, SEEK_SET);
+		fputc((selectedDiskSize / 512) & 0xff, osImage);
+		fseek(osImage, 0x4414, SEEK_SET);
+		fputc(((selectedDiskSize / 512) & 0xff) >> 8, osImage);
+
+		fseek(osImage, 0x4416, SEEK_SET);
+		fputc((int)ceil(((selectedDiskSize / 512) * 1.5 / 512))  & 0xff, osImage);
+		fseek(osImage, 0x4417, SEEK_SET);
+		fputc((int)ceil(((selectedDiskSize / 512) * 1.5 / 512)) >> 8, osImage);
+	}
+	else
+	{
+		selectedDiskSize = 16000000;
+
+		fseek(osImage, 0x440d, SEEK_SET);
+		fputc(8, osImage);
+
+		fseek(osImage, 0x4413, SEEK_SET);
+		fputc((selectedDiskSize / 512) & 0xff, osImage);
+		fseek(osImage, 0x4414, SEEK_SET);
+		fputc(((selectedDiskSize / 512) & 0xff) >> 8, osImage);
+
+		fseek(osImage, 0x4416, SEEK_SET);
+		fputc((int)ceil(((selectedDiskSize / 512) * 1.5 / 512)) & 0xff, osImage);
+		fseek(osImage, 0x4417, SEEK_SET);
+		fputc((int)ceil(((selectedDiskSize / 512) * 1.5 / 512)) >> 8, osImage);
+	}
+
+	diskReadSector(diskNum);
 
 	return 0;
 }

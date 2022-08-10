@@ -4,7 +4,7 @@
 #include <windows.h>
 #include <winioctl.h>
 
-void diskReadSector();
+void diskReadSector(int drivenum);
 void diskWriteSector();
 
 #endif
