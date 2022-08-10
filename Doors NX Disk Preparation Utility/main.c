@@ -3,8 +3,10 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <stdbool.h>
+#include "diskio.h"
 
 void zeroFillBuffer(char* ptr, int length);
+void writeDwordToFile(UINT32 dword, int position,FILE *filePointer);
 
 bool checkForDuplicates(DWORD* ptr,DWORD value);
 
@@ -29,7 +31,7 @@ int main(int argc, char** argv)
 	printf("Doors NX GPT Disk Preparation Utility\nCopyright (C) 2022 David Badiei\n\nEnter Doors NX image name here: ");
 	scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
 
-	while (errorCode = fopen_s(&osImage, userInputBuffer, "r") != 0)
+	while (errorCode = fopen_s(&osImage, userInputBuffer, "r+") != 0)
 	{
 		printf("ERROR: Cannot locate Doors NX image!\nPlease try again: ");
 		scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
@@ -40,9 +42,7 @@ int main(int argc, char** argv)
 	GetLogicalDriveStringsW(_MAX_PATH, &logicalDriveAddr);
 
 	printf("\nDisk #			Size (bytes)\n");
-	printf("------			-------------------------\n");
-
-	
+	printf("------			-------------------------\n");	
 
 	for (int i = 0; i < 31; i++)
 	{
@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 	
 	STORAGE_DEVICE_NUMBER fdisk = { 0 };
 	DISK_GEOMETRY diskSizeGeo = { 0 };
-	ULONGLONG diskSize = 0;
+	ULONGLONG diskSizes[24] = { 0 };
 
 	for (int i = 2; i < 31; i++)
 	{
@@ -64,8 +64,8 @@ int main(int argc, char** argv)
 			if (!checkForDuplicates(&driveNumbers, fdisk.DeviceNumber))
 			{
 				DeviceIoControl(driveHandler, IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0, &diskSizeGeo, sizeof(diskSizeGeo), &sizeOfReturn, NULL);
-				diskSize = diskSizeGeo.Cylinders.QuadPart * (ULONG)diskSizeGeo.TracksPerCylinder * (ULONG)diskSizeGeo.SectorsPerTrack * (ULONG)diskSizeGeo.BytesPerSector;
-				printf("%i			%I64d\n", fdisk.DeviceNumber,diskSize);
+				diskSizes[fdisk.DeviceNumber] = diskSizeGeo.Cylinders.QuadPart * (ULONG)diskSizeGeo.TracksPerCylinder * (ULONG)diskSizeGeo.SectorsPerTrack * (ULONG)diskSizeGeo.BytesPerSector;
+				printf("%i			%I64d\n", fdisk.DeviceNumber,diskSizes[fdisk.DeviceNumber]);
 				driveNumbers[driveNumberPointer] = fdisk.DeviceNumber;
 				driveNumberPointer++;
 			}
@@ -73,6 +73,7 @@ int main(int argc, char** argv)
 		}
 	}
 
+	//Ask the user for their chosen drive
 	zeroFillBuffer(&userInputBuffer[0], _MAX_PATH);
 	printf("\nPlease select a drive with its drive number: ");
 	scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
@@ -83,6 +84,36 @@ int main(int argc, char** argv)
 		scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
 	}
 
+	ULONGLONG selectedDiskSize = diskSizes[atoi(&userInputBuffer[0])];
+
+	printf("\nWARNING! ALL DATA ON THIS DISK WILL BE LOST! Type ""yes"" to continue: ");
+
+	while (1)
+	{
+		scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
+
+		if (strcmp(userInputBuffer,"yes") == 0)
+		{
+			break;
+		}
+		else
+		{
+			printf("Program terminated. User did not user enter ""yes""");
+			return 0;
+		}
+	}
+
+	fseek(osImage, 0x1c2, SEEK_SET);
+	fputc(0xee,osImage);
+
+	writeDwordToFile(0xffffffff, 0x1ca, osImage);
+
+	writeDwordToFile(0xffffff, 0x1c3, osImage);
+
+	writeDwordToFile(1, 0x1c6, osImage);
+
+
+
 	return 0;
 }
 
@@ -91,6 +122,19 @@ void zeroFillBuffer(char *ptr, int length)
 	for (int i = 0; i < length; i++)
 	{
 		ptr[i] = 0;
+	}
+}
+
+void writeDwordToFile(UINT32 dword, int position, FILE* filePointer)
+{
+	UINT32 tempDword = dword;
+
+	fseek(filePointer, position, SEEK_SET);
+
+	for (int i = 0; i < 4; i++)
+	{
+		fputc(tempDword & 0xff, filePointer);
+		tempDword = tempDword >> 8;
 	}
 }
 
