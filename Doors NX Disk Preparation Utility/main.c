@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include "diskio.h"
+#include "checksum.h"
 
 void zeroFillBuffer(char* ptr, int length);
 void writeDwordToFile(UINT32 dword, int position,FILE *filePointer);
@@ -122,6 +123,12 @@ int main(int argc, char** argv)
 
 	writeDwordToFile((selectedDiskSize / 512) - 1, 0x220, osImage);
 
+	//Get the checksum for the GPT to work
+	writeDwordToFile(0, 0x258, osImage);
+	writeDwordToFile(crc32checksum(0x3fff, osImage, 0x400),0x258, osImage);
+	writeDwordToFile(0, 0x210, osImage);
+	writeDwordToFile(crc32checksum(0x5c, osImage, 0x200),0x210,osImage);
+
 	//Determine if FAT12, 16, or 32 should be used, depending on the file size
 	if (selectedDiskSize <= 16000000)
 	{
@@ -160,6 +167,9 @@ int main(int argc, char** argv)
 	saveToSector(0x400, osImage, (selectedDiskSize / 512) - 33, diskNum, 31);
 	saveToSector(0x200, osImage, (selectedDiskSize / 512) - 1, diskNum, 1);
 	saveToSector(0x4400, osImage, 34, diskNum, 1);
+
+	printf("Disk Write Complete!\n");
+	system("PAUSE");
 
 	printf("Disk Write Complete!\n");
 	system("PAUSE");
