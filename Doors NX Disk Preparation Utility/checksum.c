@@ -1,11 +1,12 @@
 #include "checksum.h"
 
+BYTE buff[0xffff] = { 0 }; //Move buffer to global
+
 unsigned int crc32checksum(int arrLength, FILE *filePointer, int fileStartPos)
 {
 	const int arrSize = arrLength;
 	unsigned long long int value = 0xFFFFFFFF;
 	unsigned long long int crc32polynomial = 0x1DB710641;
-	BYTE buff[0xffff] = { 0 };
 	BYTE tempByte;
 	int currentPos = fileStartPos;
 

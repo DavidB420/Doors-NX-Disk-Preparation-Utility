@@ -82,7 +82,7 @@ int main(int argc, char** argv)
 	printf("\nPlease select a drive with its drive number: ");
 	scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
 
-	while (!checkForDuplicates(&driveNumbers, atoi(&userInputBuffer[0])) || atoi(&userInputBuffer[0]) <= 2)
+	while (!checkForDuplicates(&driveNumbers, atoi(&userInputBuffer[0])) || atoi(&userInputBuffer[0]) <= 1)
 	{
 		printf("ERROR: Invalid disk choice!\nPlease try again: ");
 		scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
@@ -123,12 +123,6 @@ int main(int argc, char** argv)
 
 	writeDwordToFile((selectedDiskSize / 512) - 1, 0x220, osImage);
 
-	//Get the checksum for the GPT to work
-	writeDwordToFile(0, 0x258, osImage);
-	writeDwordToFile(crc32checksum(0x3fff, osImage, 0x400),0x258, osImage);
-	writeDwordToFile(0, 0x210, osImage);
-	writeDwordToFile(crc32checksum(0x5c, osImage, 0x200),0x210,osImage);
-
 	//Determine if FAT12, 16, or 32 should be used, depending on the file size
 	if (selectedDiskSize <= 16000000)
 	{
@@ -161,15 +155,17 @@ int main(int argc, char** argv)
 		fputc((int)ceil(((16000000 / 512) * 1.5 / 512)) >> 8, osImage);
 	}
 
+	//Get the checksum for the GPT to work
+	writeDwordToFile(0, 0x258, osImage);
+	writeDwordToFile(crc32checksum(0x3ffe, osImage, 0x400), 0x258, osImage);
+	writeDwordToFile(0, 0x210, osImage);
+	writeDwordToFile(crc32checksum(0x5c, osImage, 0x200), 0x210, osImage);
+
 	saveToSector(0, osImage,0, diskNum,33);
 
 	saveToSector(0x400, osImage, (selectedDiskSize / 512) - 33, diskNum, 31);
-	saveToSector(0x400, osImage, (selectedDiskSize / 512) - 33, diskNum, 31);
 	saveToSector(0x200, osImage, (selectedDiskSize / 512) - 1, diskNum, 1);
 	saveToSector(0x4400, osImage, 34, diskNum, 1);
-
-	printf("Disk Write Complete!\n");
-	system("PAUSE");
 
 	printf("Disk Write Complete!\n");
 	system("PAUSE");
