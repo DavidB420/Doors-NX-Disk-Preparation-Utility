@@ -55,12 +55,23 @@ int main(int argc, char** argv)
 	STORAGE_DEVICE_NUMBER fdisk = { 0 };
 	DISK_GEOMETRY_EX diskSizeGeo = { 0 };
 	ULONGLONG diskSizes[24] = { 0 };
+	ULONGLONG diskTypes[24] = { 0 };
 
-	for (int i = 2; i < 31; i++)
+	int startOfFixedDisks = 0;
+
+	for (int i = 0; i < _MAX_PATH; i++)
 	{
-		if ((val & (1 << i)) >> i == 1)
+		if (logicalDriveAddr[i] == L'A' || logicalDriveAddr[i] == L'B')
 		{
-			GetVolumeNameForVolumeMountPointW(&logicalDriveAddr[(i-2) * 4], &driveBuffer, _MAX_PATH);
+			startOfFixedDisks++;
+		}
+		i += 3;
+	}
+	for (int i = startOfFixedDisks; i < 31; i++) //check why d isnt showing up
+	{
+		if ((val & (1 << i+(2-startOfFixedDisks))) >> i + (2 - startOfFixedDisks) == 1)
+		{
+			GetVolumeNameForVolumeMountPointW(&logicalDriveAddr[searchForWideByte(&logicalDriveAddr,0x41+ i + (2 - startOfFixedDisks),_MAX_PATH)], &driveBuffer, _MAX_PATH);
 			driveBuffer[48] = 0;
 			HANDLE driveHandler = CreateFile(driveBuffer, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 			DeviceIoControl(driveHandler, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &fdisk, sizeof(fdisk), &sizeOfReturn,NULL);
@@ -71,6 +82,7 @@ int main(int argc, char** argv)
 				diskSizes[fdisk.DeviceNumber] = diskSizeGeo.DiskSize.QuadPart;
 				printf("%i			%I64d\n", fdisk.DeviceNumber,diskSizes[fdisk.DeviceNumber]);
 				driveNumbers[driveNumberPointer] = fdisk.DeviceNumber;
+				diskTypes[driveNumberPointer] = fdisk.DeviceType;
 				driveNumberPointer++;
 			}
 			CloseHandle(driveHandler);
@@ -82,7 +94,7 @@ int main(int argc, char** argv)
 	printf("\nPlease select a drive with its drive number: ");
 	scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
 
-	while (!checkForDuplicates(&driveNumbers, atoi(&userInputBuffer[0])) || atoi(&userInputBuffer[0]) <= 1)
+	while (!checkForDuplicates(&driveNumbers, atoi(&userInputBuffer[0])) || atoi(&userInputBuffer[0]) <= 0)
 	{
 		printf("ERROR: Invalid disk choice!\nPlease try again: ");
 		scanf_s("%[^\n]%*c", userInputBuffer, _MAX_PATH);
@@ -132,7 +144,7 @@ int main(int argc, char** argv)
 		fseek(osImage, 0x4413, SEEK_SET);
 		fputc((selectedDiskSize / 512) & 0xff, osImage);
 		fseek(osImage, 0x4414, SEEK_SET);
-		fputc(((selectedDiskSize / 512) & 0xff) >> 8, osImage);
+		fputc(((selectedDiskSize / 512) & 0xff00) >> 8, osImage);
 
 		fseek(osImage, 0x4416, SEEK_SET);
 		fputc((int)ceil(((selectedDiskSize / 512) * 1.5 / 512))  & 0xff, osImage);
@@ -147,7 +159,7 @@ int main(int argc, char** argv)
 		fseek(osImage, 0x4413, SEEK_SET);
 		fputc((16000000 / 512) & 0xff, osImage);
 		fseek(osImage, 0x4414, SEEK_SET);
-		fputc(((16000000 / 512) & 0xff) >> 8, osImage);
+		fputc(((16000000 / 512) & 0xff00) >> 8, osImage);
 
 		fseek(osImage, 0x4416, SEEK_SET);
 		fputc((int)ceil(((16000000 / 512) * 1.5 / 512)) & 0xff, osImage);
@@ -157,7 +169,7 @@ int main(int argc, char** argv)
 
 	//Get the checksum for the GPT to work
 	writeDwordToFile(0, 0x258, osImage);
-	writeDwordToFile(crc32checksum(0x3ffe, osImage, 0x400), 0x258, osImage);
+	writeDwordToFile(crc32checksum(0x4000, osImage, 0x400), 0x258, osImage);
 	writeDwordToFile(0, 0x210, osImage);
 	writeDwordToFile(crc32checksum(0x5c, osImage, 0x200), 0x210, osImage);
 
@@ -227,4 +239,16 @@ bool checkForDuplicates(DWORD* ptr, DWORD value)
 		}
 	}
 	return false;
+}
+
+int searchForWideByte(wchar_t* arr, wchar_t value, int length)
+{
+	for (int i = 0; i < length; i++)
+	{
+		if (arr[i] == value)
+		{
+			return i;
+		}
+	}
+	return -1;
 }
