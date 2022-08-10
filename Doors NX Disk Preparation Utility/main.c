@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 		fputc((int)ceil(((selectedDiskSize / 512) * 1.5 / 512)) >> 8, osImage);
 	}
 
-	diskReadSector(diskNum);
+	diskReadSector(diskNum,0);
 
 	return 0;
 }

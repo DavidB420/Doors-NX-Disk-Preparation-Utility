@@ -2,20 +2,26 @@
 
 void diskReadSector(int drivenum, int sectortoRead)
 {
-	WCHAR driveBuffer[_MAX_PATH] = { 0 };
+	WCHAR driveBuffer[] = L"\\\\.\\PhysicalDrive0";
 	wchar_t logicalDriveAddr[_MAX_PATH] = { 0 };
-	char buff[512] = {0};
+	BYTE buff[512] = {0};
 	BOOL readSector;
+	DWORD bytesRead = 0;
+
+	driveBuffer[17] = drivenum + 0x30;
 
 	GetLogicalDriveStringsW(_MAX_PATH, &logicalDriveAddr);
-	GetVolumeNameForVolumeMountPointW(&logicalDriveAddr[(drivenum) * 4], &driveBuffer, _MAX_PATH);
-	driveBuffer[48] = 0;
 
-	HANDLE driveHandler = CreateFileW(driveBuffer, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE driveHandler = CreateFile(driveBuffer, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
 	SetFilePointer(driveHandler, sectortoRead * 512, 0, FILE_BEGIN);
 
-	while(readSector = ReadFile(driveHandler, &buff, 512, 0, FILE_BEGIN));
+	while(!(readSector = ReadFile(driveHandler, buff, 512, &bytesRead, NULL)));
+
+	for (int i = 0; i < 512; i++)
+	{
+		printf("%c", buff[i]);
+	}
 
 	CloseHandle(driveHandler);
 }
